@@ -7,4 +7,7 @@ void PIN_Clear(PinAuth *p);
 void PIN_Back(PinAuth *p);
 Role PIN_Add(PinAuth *p,uint8_t digit,uint32_t now);
 uint8_t PIN_IsPaused(PinAuth *p,uint32_t now);
+Role PIN_AddRequired(PinAuth *p,uint8_t digit,uint32_t now,Role required);
+void PIN_ResetConfig(void);
+uint8_t PIN_SetCode(Role role,const char *code);
 #endif

@@ -1,3 +1,5 @@
+#include "sensors.h"
+#include "lid_timer.h"
 #include "main.h"
 #include "uart_console.h"
 #include "console_commands.h"
@@ -46,8 +48,8 @@ void UARTConsole_Process(App *a) {
             if(dropping) {UARTConsole_Log("ERROR LINE_OVERFLOW\r\n");dropping=0;used=0;}
             else if(used) {char reply[512];line[used]=0;if(!strcmp(line,"IRQ")) {
                     uint32_t counts[4],lost;Buttons_GetIrqStats(counts,&lost);
-                    snprintf(reply,sizeof(reply),"IRQ EDGES D2=%lu D3=%lu D4=%lu D5=%lu DROPPED=%lu\r\n",
-                        (unsigned long)counts[0],(unsigned long)counts[1],(unsigned long)counts[2],(unsigned long)counts[3],(unsigned long)lost);
+                    snprintf(reply,sizeof(reply),"IRQ EDGES D2=%lu D3=%lu D4=%lu D5=%lu DROPPED=%lu ADC_AWD=%lu TEMP_ALARM=%u TIM2_EXPIRED=%lu\r\n",
+                        (unsigned long)counts[0],(unsigned long)counts[1],(unsigned long)counts[2],(unsigned long)counts[3],(unsigned long)lost,(unsigned long)Sensors_TempAlarmCount(),(unsigned)Sensors_TempAlarmActive(),(unsigned long)LidTimer_Count());
                 } else Console_Command(a,line,HAL_GetTick(),reply,sizeof(reply));UARTConsole_Log(reply);used=0;}
         } else if(!dropping) {
             if(c=='\b'||c==127) {if(used) used--;}

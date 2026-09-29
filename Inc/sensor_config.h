@@ -14,4 +14,8 @@
 #define LIGHT_HIGH_IS_BRIGHT 0
 #define SENSOR_PERIOD_MS 500U
 #define SENSOR_AVERAGES 8U
+/* Classroom limits; rearm only after returning inside the hysteresis band. */
+#define TEMP_ALARM_LOW_C 2.0f
+#define TEMP_ALARM_HIGH_C 8.0f
+#define TEMP_ALARM_HYST_C 1.0f
 #endif

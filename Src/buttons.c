@@ -9,6 +9,7 @@ static const IRQn_Type irqs[4]={EXTI15_10_IRQn,EXTI3_IRQn,EXTI9_5_IRQn,EXTI4_IRQ
 static volatile uint32_t irq_count[4],dropped;
 static uint32_t pressed_at[4],accepted_at[4];
 static uint8_t down,blocked,ready;
+static volatile uint8_t open_request;
 static volatile uint8_t queue[16],head,tail;
 void Buttons_Init(void) {
     GPIO_InitTypeDef g={0};ready=0;
@@ -17,7 +18,7 @@ void Buttons_Init(void) {
     g.Pull=GPIO_PULLUP;g.Mode=GPIO_MODE_IT_RISING_FALLING;
     g.Pin=GPIO_PIN_10;HAL_GPIO_Init(GPIOA,&g);
     g.Pin=GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5;HAL_GPIO_Init(GPIOB,&g);
-    down=0;head=tail=0;dropped=0;
+    down=0;head=tail=0;dropped=0;open_request=0;
     for(unsigned i=0;i<4;i++) {
         irq_count[i]=0;pressed_at[i]=HAL_GetTick();accepted_at[i]=pressed_at[i]-40U;
         if(HAL_GPIO_ReadPin(ports[i],pins[i])==GPIO_PIN_RESET) down|=(1U<<i);
@@ -40,7 +41,8 @@ void Buttons_Edge(uint16_t pin) {
         } else {
             if((down&bit) && !(blocked&bit) && (uint32_t)(now-pressed_at[i])>=40U && (uint32_t)(now-accepted_at[i])>=40U) {
                 uint8_t next=(head+1U)&15U;
-                if(next==tail) dropped++;
+                if(i==0) open_request=1;
+                else if(next==tail) dropped++;
                 else {queue[head]=bit;__DMB();head=next;}
                 accepted_at[i]=now;
             }
@@ -48,6 +50,12 @@ void Buttons_Edge(uint16_t pin) {
         }
         return;
     }
+}
+uint8_t Buttons_TakeOpenRequest(void) {
+    uint32_t p=__get_PRIMASK();__disable_irq();
+    uint8_t result=open_request;open_request=0;
+    if(result) tail=head; /* Discard stale navigation when a global request arrives. */
+    __set_PRIMASK(p);return result;
 }
 uint8_t Buttons_GetEvent(void) {
     if(tail==head) return 0;

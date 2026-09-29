@@ -1,91 +1,101 @@
 # Vaccine Box — STM32F411RE
 
-โครงงานวิชา Microprocessor Systems and Applications: กล่องวัคซีนจำลองบน NUCLEO-F411RE และ Training Shield
+โครงงานกล่องวัคซีนจำลอง NUCLEO-F411RE + Training Shield เวอร์ชัน 29 กันยายน 2026
 
-อ่านอุณหภูมิและแสงภายในจากเซนเซอร์จริง จำลองอุณหภูมิภายนอกผ่าน Serial Console คำนวณ Risk ก่อนเปิด และแสดง Health ของวัคซีน 3 ช่องเป็นแถบพร้อมเปอร์เซ็นต์บน OLED
+อ่านอุณหภูมิและแสงจริง แสดง Health V1–V3 บน OLED ควบคุม Servo และแจ้งเตือนด้วย ADC/TIM2 Interrupt เป็นแบบจำลองเพื่อการเรียน Health ไม่ใช่ผลตรวจคุณภาพวัคซีนทางการแพทย์
 
-> เป็นแบบจำลองเพื่อการเรียน: Health/Risk ไม่ใช่ผลประเมินคุณภาพวัคซีนทางการแพทย์ สถานะและคะแนนเก็บใน RAM และรีเซ็ตเมื่อเริ่มระบบใหม่
+## Build
 
-## เปิดและ Build
+STM32CubeIDE 1.19.0 → File → Import → Existing Projects into Workspace → เลือกโฟลเดอร์นี้ → project `vaccine` → Build Debug
 
-1. ดาวน์โหลดหรือ clone repository นี้
-2. เปิด STM32CubeIDE (ตรวจด้วยรุ่น 1.19.0)
-3. ใช้ **File → Import → General → Existing Projects into Workspace** เลือกโฟลเดอร์นี้ แล้วเลือกโปรเจกต์ `vaccine`
-4. เลือก **Project → Build Project** โดยใช้ configuration `Debug`
-5. ต่อบอร์ดผ่าน ST-LINK แล้วสร้าง Run/Debug configuration สำหรับ STM32 เพื่อดาวน์โหลดโปรแกรม
+รวม HAL และ CMSIS headers พร้อม relative include paths แล้ว ไม่มี `.ioc` และไม่รวมไฟล์ Debug/Release หรือ launch configuration เฉพาะเครื่อง
 
-รวม HAL และ CMSIS headers ไว้แล้ว ใช้ include path แบบ relative ไม่ต้องมีโฟลเดอร์ Library ของผู้พัฒนา ไม่มีไฟล์ `.ioc`; โปรเจกต์นี้แก้ไข source และ configuration โดยตรง
+## ใช้งาน
 
-## การต่ออุปกรณ์
+หน้า HOME แสดงอุณหภูมิ แสง และแถบ Health กด D2 เข้าหน้า PIN (ตอนเริ่มระบบให้ปิดฝาตามข้อความก่อน)
 
-| อุปกรณ์ | ขา/Peripheral |
+| ปุ่ม | หน้าที่ |
 |---|---|
-| อุณหภูมิภายใน | PA0 / ADC1_IN0 |
-| แสงภายใน | PA1 / ADC1_IN1 |
-| OLED | PB8 SCL, PB9 SDA / I2C1 |
-| Servo สลัก | PB0 / TIM3_CH3 |
-| Serial Console | PA2 TX, PA3 RX / USART2 ผ่าน ST-LINK VCP |
-| D2 ยืนยัน | PA10 / EXTI15_10 |
-| D3 ย้อนกลับหรือลบ | PB3 / EXTI3 |
-| D4 ซ้ายหรือลดเลข | PB5 / EXTI9_5 |
-| D5 ขวาหรือเพิ่มเลข | PB4 / EXTI4 |
+| D2 | ขอเปิด / ยืนยันเลขหรือเมนู |
+| D3 กดสั้น | ลบ / ย้อนกลับ / รับทราบ Alarm |
+| D4 / D5 | เลื่อนซ้าย–ขวา / ลด–เพิ่มค่า |
 
-ไม่มีเซนเซอร์ฝาจริง ใช้ D2 ยืนยันสถานะฝาจำลอง และ Servo ควบคุมสลัก ไม่ได้ยกฝา ปัจจุบันใช้ D4/D5 เลือกเมนูและเลขแทน potentiometer
+- Nurse PIN เริ่มต้น `1234`: เข้าเลือกหลอดสำหรับ USE / RETURN โดยตรง
+- Admin PIN เริ่มต้น `2468`: TRANSPORT, USE / RETURN, REPLACE VIAL, ADMIN SETTINGS
+- Transport ต้องใช้ Admin ทั้งเข้าและออก พยาบาลไม่สามารถข้ามด้วยปุ่มย้อนกลับหรือ Logout
+- Use / Return สมมติว่าใช้แล้วคืนหลอดเดิม Health ไม่รีเซ็ตและไม่มี OUT
+- Admin Replace Vial ยืนยันใส่หลอดใหม่ แล้ว Health เริ่ม 100% หลังยืนยันปิด
+- ระบบตรวจ Risk <70, เซนเซอร์พร้อม และสถานะหลอด ก่อนเปิดใช้
+- ส่งคำสั่ง Servo เปิดสำเร็จแล้วเริ่มจับเวลาทันที ไม่ต้องยืนยัน OPENED อีก
+- D2 จบงาน → ปิดฝาและ D2 ยืนยัน → Servo ปิดและกลับ HOME
+- ยังไม่มีเซนเซอร์ตำแหน่งฝาหรืออุปกรณ์ระบุตัวหลอด จึงยืนยันการเคลื่อนที่/ตัวตนหลอดจริงไม่ได้
 
-## เริ่มใช้งาน
+## Admin Settings บน OLED
 
-1. เปิดระบบ ปิดฝาแล้วกด D2 ยืนยัน
-2. เลือกเลขด้วย D4/D5 กด D2 ใส่เลข กด D3 ลบ
-3. PIN สำหรับการสาธิต: ผู้จ่ายยา `1234`, Admin `2468` (กำหนดใน `Inc/app_policy.h`)
-4. เลือกโหมดด้วย D4/D5 แล้วกด D2
+เมนูแสดงครั้งละ 3 รายการ เลื่อนต่อเพื่อดูรายการท้าย
 
-| โหมด | หน้าที่ |
+- OPEN TIME: 10–300 วินาที
+- NURSE PIN / ADMIN PIN: กรอกใหม่ 4 หลักสองครั้งให้ตรงกัน และสองบทบาทต้องไม่ใช้รหัสเดียวกัน
+- TEMP RANGE: MIN–MAX ระหว่าง -40 ถึง 125°C เริ่มต้น 2–8°C
+- LIGHT RANGE: MIN–MAX ระหว่าง 0 ถึง 100% เริ่มต้น 0–100% ไม่ใช่ค่า lux
+
+MIN ต้องต่ำกว่า MAX การแก้มีผลเมื่อกด SAVE ช่วงอุณหภูมิใช้กับ Analog Watchdog และสูตร Risk/Health ส่วนช่วงแสงใช้แจ้งเตือน การตั้งค่าไม่ฟื้น Health เดิม
+
+## Alarm และ Sensor Fault
+
+- ADC Analog Watchdog: อุณหภูมิภายในผิดช่วง ตั้งธงใน ISR แล้วแสดง TEMP ALARM ใน main loop มี hysteresis ก่อนเตือนรอบใหม่
+- Light Alarm: ตรวจจากค่าที่อ่านใน main loop ไม่ใช่ ADC IRQ แยกสำหรับแสง
+- TIM2: Timer interrupt ทุกวินาทีระหว่างเปิด เมื่อหมดเวลาแสดง TIMEOUT และ LED 4 ดวงกระพริบ ไม่ปิดฝาเอง
+- Sensor Fault: ADC/init/read error, ค่าติดขอบ ADC, ค่าอุณหภูมิแปลงไม่ได้ และข้อมูลเก่าอย่างน้อย 2 วินาที
+- D3 รับทราบ Fault ได้แต่ยังเปิด USE / RETURN ไม่ได้จนกลับมาปกติ ฝาที่เปิดอยู่ยังปิดได้
+- ADC rail เป็นสัญญาณน่าสงสัย ไม่ยืนยันสายขาดทุกกรณี โดยเฉพาะแสงอิ่มตัวอาจเป็นสภาพจริง
+
+## Peripheral / Pins
+
+| อุปกรณ์ | ขา / Peripheral |
 |---|---|
-| Transport | ล็อกและติดตามสภาพภายใน |
-| Dispense | เลือกวัคซีน ตรวจสิทธิ์และ Risk ก่อนจ่าย |
-| Service | Admin ดูแลรักษาหรือเติมวัคซีน |
+| อุณหภูมิ / แสง | PA0 / PA1, ADC1 |
+| OLED | PB8 SCL / PB9 SDA, I2C1 |
+| Servo | PB0, TIM3 CH3 PWM 50 Hz |
+| D2 / D3 / D4 / D5 | PA10 / PB3 / PB5 / PB4, EXTI |
+| LED 4 ดวง | PA5 / PA6 / PA7 / PB6, active high |
+| Serial | PA2 TX / PA3 RX, USART2 ผ่าน ST-LINK VCP |
+| จับเวลาเปิด | TIM2 interrupt |
+| ฐานเวลา | SysTick 1 ms |
 
-Health ของวัคซีนที่ยังอยู่ในกล่องลดได้ทุกช่องตามสภาพร่วมกัน แม้กำลังเลือกช่องใดช่องหนึ่ง คะแนนที่ลดแล้วไม่ฟื้นเอง การเติมใหม่โดย Admin เริ่ม Health ใหม่
+## Console
 
-## Web Serial Console
-
-ใช้เว็บ Serial Terminal ในเบราว์เซอร์ที่รองรับ Web Serial เลือกพอร์ต ST-LINK VCP (เลข COM ขึ้นกับเครื่อง) ตั้ง **115200, 8N1** และส่งคำสั่งพร้อม newline
+Web Serial Terminal, 115200 8N1 พร้อม newline เลือก COM ของ ST-LINK ตามเครื่อง
 
 ```text
-HELP
 STATUS
 IRQ
+CONFIG
+LOG 0
+LOG 1
+LOG 2
+LOG 3
+SET OPEN_SECONDS 30
+SET PIN NURSE 1357
+SET PIN ADMIN 8642
 SET OUTSIDE_TEMP 35
 SET VIAL 1 SENSITIVITY 1.5
 LOGOUT
 ```
 
-คำสั่ง `SET` ต้องล็อกอิน Admin ที่บอร์ด และอยู่หน้า MODE หรือ TRANSPORT ขณะล็อกกล่อง ไม่มีคำสั่ง SET HEALTH
+CONFIG, LOG และ SET ต้องล็อกอิน Admin ที่บอร์ดและอยู่หน้า MODE/TRANSPORT ขณะล็อก ส่วน STATUS/IRQ อ่านได้ทั่วไป LOG เก็บ 16 รายการล่าสุด เวลาเป็น ms ตั้งแต่เริ่มเครื่อง ไม่เก็บค่า PIN ในประวัติ
 
-## Interrupt
+ค่าตั้ง PIN Health และประวัติอยู่ RAM ทั้งหมด รีเซ็ตแล้วกลับค่าเริ่มต้น ยังไม่มี Flash persistence, RTC, RFID, สวิตช์ฝาจริง หรือเว็บ Dashboard เฉพาะโครงงาน
 
-D2–D5 ใช้ EXTI ทั้งขาขึ้นและขาลง ISR บันทึกขอบสัญญาณ เวลา และคิวปุ่ม ส่วน main loop นำเหตุการณ์ไปประมวลผลตามหน้าปัจจุบัน กดอย่างน้อย 40 ms แล้วปล่อยจึงส่งเหตุการณ์ ไม่ทำงานซ้ำเมื่อกดค้าง
+## เอกสาร
 
-`IRQ` แสดงจำนวนขอบสัญญาณของแต่ละปุ่มและจำนวนเหตุการณ์ที่คิวเต็ม ไม่ใช่จำนวนครั้งที่กด UART RX และ SysTick ใช้ interrupt เช่นกัน
+- [Sensor Fault](docs/sensor-fault-guide.md)
+- [ตั้งช่วงเซนเซอร์](docs/sensor-ranges-guide.md)
+- [Servo เปิดอัตโนมัติและ LED](docs/auto-open-led-guide.md)
+- [Admin Settings](docs/oled-admin-settings-guide.md)
 
-รายละเอียด: [Interrupt](docs/button-interrupt-guide.md), [ปุ่ม D4/D5](docs/D4-D5-navigation.md), [OLED](docs/compact-oled-guide.md)
+เฟิร์มแวร์ชุด Sensor Fault ผ่าน ARM emulator / HAL mocks 46 checks; การทดสอบจำลองไม่แทนการทดสอบสายเซนเซอร์และกลไกจริงบนบอร์ด
 
-## โครงสร้างโค้ด
+## Third-party licenses
 
-| ไฟล์/โฟลเดอร์ | หน้าที่ |
-|---|---|
-| `Src/main.c` | เริ่มระบบและ peripheral |
-| `Src/app_runtime.c`, `app_state.c` | main-loop งานแอปและ state machine |
-| `Src/buttons.c`, `stm32f4xx_it.c` | คิวปุ่มและ interrupt handlers |
-| `Src/sensors.c` | อ่านและแปลงค่าเซนเซอร์ |
-| `Src/risk_model.c`, `vial_model.c` | แบบจำลอง Risk และ Health |
-| `Src/ui_screen.c`, `oled_display.c` | หน้าจอและ OLED driver |
-| `Src/uart_console.c`, `console_commands.c` | Serial Console |
-| `Src/servo_lock.c`, `pin_auth.c` | สลักและ PIN |
-| `Inc/HAL`, `Src/HAL`, `Drivers/CMSIS` | ไลบรารีที่รวมไว้ |
-
-## Third-party software
-
-HAL v1.8.3 และ CMSIS Device F4 v2.6.10 มาจาก STMicroelectronics; CMSIS Core headers มาจาก Library ที่ใช้งานในโปรเจกต์เดิม เก็บ copyright notices ในไฟล์ต้นฉบับไว้ พร้อม license ใน `Inc/HAL`, `Src/HAL`, `Drivers/CMSIS/Core` และ `Drivers/CMSIS/Device/ST/STM32F4xx`
-
-ยังไม่ได้กำหนด license สำหรับโค้ดแอปของผู้ทำโครงงาน
+HAL v1.8.3 และ CMSIS Device F4 v2.6.10 จาก STMicroelectronics; CMSIS Core จาก Library เดิม เก็บ copyright notices และ license ใน Inc/HAL, Src/HAL และ Drivers/CMSIS ไว้ ยังไม่ได้กำหนด license สำหรับโค้ดแอปของโครงงาน
