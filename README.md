@@ -1,6 +1,6 @@
 # Vaccine Box — STM32F411RE
 
-โครงงานกล่องวัคซีนจำลอง NUCLEO-F411RE + Training Shield เวอร์ชัน 29 กันยายน 2026
+โครงงานกล่องวัคซีนจำลอง NUCLEO-F411RE + Training Shield เวอร์ชัน 10 ตุลาคม 2026
 
 อ่านอุณหภูมิและแสงจริง แสดง Health V1–V3 บน OLED ควบคุม Servo และแจ้งเตือนด้วย ADC/TIM2 Interrupt เป็นแบบจำลองเพื่อการเรียน Health ไม่ใช่ผลตรวจคุณภาพวัคซีนทางการแพทย์
 
@@ -44,7 +44,7 @@ MIN ต้องต่ำกว่า MAX การแก้มีผลเม�
 ## Alarm และ Sensor Fault
 
 - ADC Analog Watchdog: อุณหภูมิภายในผิดช่วง ตั้งธงใน ISR แล้วแสดง TEMP ALARM ใน main loop มี hysteresis ก่อนเตือนรอบใหม่
-- Light Alarm: ตรวจจากค่าที่อ่านใน main loop ไม่ใช่ ADC IRQ แยกสำหรับแสง
+- Light Alarm: ใช้ ADC EOC Interrupt สะสม 8 ตัวอย่างหลังทิ้งตัวอย่างแรก แล้วเฉลี่ยและตรวจช่วงใน ISR ก่อนตั้ง flag ให้ main loop แสดงผล ไม่ใช่ Analog Watchdog ของแสง
 - TIM2: Timer interrupt ทุกวินาทีระหว่างเปิด เมื่อหมดเวลาแสดง TIMEOUT และ LED 4 ดวงกระพริบ ไม่ปิดฝาเอง
 - Sensor Fault: ADC/init/read error, ค่าติดขอบ ADC, ค่าอุณหภูมิแปลงไม่ได้ และข้อมูลเก่าอย่างน้อย 2 วินาที
 - D3 รับทราบ Fault ได้แต่ยังเปิด USE / RETURN ไม่ได้จนกลับมาปกติ ฝาที่เปิดอยู่ยังปิดได้
@@ -99,3 +99,10 @@ CONFIG, LOG และ SET ต้องล็อกอิน Admin ที่บ�
 ## Third-party licenses
 
 HAL v1.8.3 และ CMSIS Device F4 v2.6.10 จาก STMicroelectronics; CMSIS Core จาก Library เดิม เก็บ copyright notices และ license ใน Inc/HAL, Src/HAL และ Drivers/CMSIS ไว้ ยังไม่ได้กำหนด license สำหรับโค้ดแอปของโครงงาน
+
+## อัปเดต 10 ตุลาคม 2026
+
+- เพิ่ม ADC EOC Interrupt สำหรับแสง พร้อมตัวนับ LIGHT_EOC และ LIGHT_ALARM_COUNT ในคำสั่ง IRQ
+- จัดรูปแบบโค้ดตาม Guideline Checksheet และรวมค่าคงที่ใน Inc/app_constants.h
+- รายละเอียด: [Light ADC Interrupt](docs/LIGHT_ADC_INTERRUPT.md) และ [Coding Guideline](docs/CODING_GUIDELINE_REFACTOR.md)
+- การอ่านแสงเริ่มเป็นชุดจาก main loop และรอ completion flag แบบมี timeout ไม่ใช่การอ่านแสงต่อเนื่องโดยอิสระ

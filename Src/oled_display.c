@@ -1,140 +1,306 @@
+#define OLED_FRAME_BYTES 1024U
+#define OLED_GLYPH_COLUMNS 5U
+#define OLED_GLYPH_COUNT 36U
+#define OLED_DIGIT_GLYPHS 10U
+#define OLED_GLYPH_ADVANCE 6U
+#define OLED_WIDTH 128U
+#define OLED_GLYPH_ROWS 7U
+#define OLED_HEIGHT 64U
+#define OLED_PAGE_HEIGHT 8U
+#define OLED_COMMAND_TIMEOUT_MS 20U
+#define OLED_PACKET_BYTES 129U
+#define OLED_SET_PAGE_BASE 0xB0U
+#define OLED_COLUMN_HIGH 0x10U
+#define OLED_DATA_TIMEOUT_MS 30U
+#include "app_constants.h"
 #include "oled_display.h"
 #include <string.h>
 extern I2C_HandleTypeDef hi2c1;
 #define OLED_SH1106 0
-static uint8_t framebuffer[1024];
-static uint8_t sent_frame[1024];
+#if OLED_SH1106
+#define OLED_COLUMN_OFFSET 0x02U
+#else
+#define OLED_COLUMN_OFFSET 0x00U
+#endif
+static uint8_t framebuffer[OLED_FRAME_BYTES];
+static uint8_t sent_frame[OLED_FRAME_BYTES];
 static uint8_t frame_valid;
 static uint16_t oled_address;
-static const uint8_t left[5]={8,0x14,0x22,0x41,0};
-static const uint8_t plus[5]={8,8,0x3E,8,8};
-static const uint8_t star[5]={0x14,8,0x3E,8,0x14};
-static const uint8_t arrow[5]={0,0x41,0x22,0x14,8};
-static const uint8_t dot[5]={0,0x60,0x60,0,0};
-static const uint8_t minus[5]={8,8,8,8,8};
-static const uint8_t percent[5]={0x63,0x13,8,0x64,0x63};
-void OLED_Clear(void) { memset(framebuffer,0,sizeof(framebuffer)); }
+static const uint8_t left[OLED_GLYPH_COLUMNS] = {8U, 0x14U, 0x22U, 0x41U, 0U};
+static const uint8_t plus[OLED_GLYPH_COLUMNS] = {8U, 8U, 0x3EU, 8U, 8U};
+static const uint8_t star[OLED_GLYPH_COLUMNS] = {0x14U, 8U, 0x3EU, 8U, 0x14U};
+static const uint8_t arrow[OLED_GLYPH_COLUMNS] = {0U, 0x41U, 0x22U, 0x14U, 8U};
+static const uint8_t dot[OLED_GLYPH_COLUMNS] = {0U, 0x60U, 0x60U, 0U, 0U};
+static const uint8_t minus[OLED_GLYPH_COLUMNS] = {8U, 8U, 8U, 8U, 8U};
+static const uint8_t percent[OLED_GLYPH_COLUMNS] = {0x63U, 0x13U, 8U, 0x64U, 0x63U};
+
+void OLED_Clear(void)
+{
+    memset(framebuffer, 0, sizeof(framebuffer));
+}
+
 /* 5x7 uppercase glyphs, columns, bit 0 at the top. */
-static const uint8_t font[36][5] = {
-    {0x3E,0x51,0x49,0x45,0x3E}, {0x00,0x42,0x7F,0x40,0x00},
-    {0x42,0x61,0x51,0x49,0x46}, {0x21,0x41,0x45,0x4B,0x31},
-    {0x18,0x14,0x12,0x7F,0x10}, {0x27,0x45,0x45,0x45,0x39},
-    {0x3C,0x4A,0x49,0x49,0x30}, {0x01,0x71,0x09,0x05,0x03},
-    {0x36,0x49,0x49,0x49,0x36}, {0x06,0x49,0x49,0x29,0x1E},
-    {0x7E,0x11,0x11,0x11,0x7E}, {0x7F,0x49,0x49,0x49,0x36},
-    {0x3E,0x41,0x41,0x41,0x22}, {0x7F,0x41,0x41,0x22,0x1C},
-    {0x7F,0x49,0x49,0x49,0x41}, {0x7F,0x09,0x09,0x09,0x01},
-    {0x3E,0x41,0x49,0x49,0x7A}, {0x7F,0x08,0x08,0x08,0x7F},
-    {0x00,0x41,0x7F,0x41,0x00}, {0x20,0x40,0x41,0x3F,0x01},
-    {0x7F,0x08,0x14,0x22,0x41}, {0x7F,0x40,0x40,0x40,0x40},
-    {0x7F,0x02,0x0C,0x02,0x7F}, {0x7F,0x04,0x08,0x10,0x7F},
-    {0x3E,0x41,0x41,0x41,0x3E}, {0x7F,0x09,0x09,0x09,0x06},
-    {0x3E,0x41,0x51,0x21,0x5E}, {0x7F,0x09,0x19,0x29,0x46},
-    {0x46,0x49,0x49,0x49,0x31}, {0x01,0x01,0x7F,0x01,0x01},
-    {0x3F,0x40,0x40,0x40,0x3F}, {0x1F,0x20,0x40,0x20,0x1F},
-    {0x3F,0x40,0x38,0x40,0x3F}, {0x63,0x14,0x08,0x14,0x63},
-    {0x07,0x08,0x70,0x08,0x07}, {0x61,0x51,0x49,0x45,0x43}
-};
+static const uint8_t font[OLED_GLYPH_COUNT][OLED_GLYPH_COLUMNS] = {
+    {0x3EU, 0x51U, 0x49U, 0x45U, 0x3EU}, {0x00U, 0x42U, 0x7FU, 0x40U, 0x00U},
+    {0x42U, 0x61U, 0x51U, 0x49U, 0x46U}, {0x21U, 0x41U, 0x45U, 0x4BU, 0x31U},
+    {0x18U, 0x14U, 0x12U, 0x7FU, 0x10U}, {0x27U, 0x45U, 0x45U, 0x45U, 0x39U},
+    {0x3CU, 0x4AU, 0x49U, 0x49U, 0x30U}, {0x01U, 0x71U, 0x09U, 0x05U, 0x03U},
+    {0x36U, 0x49U, 0x49U, 0x49U, 0x36U}, {0x06U, 0x49U, 0x49U, 0x29U, 0x1EU},
+    {0x7EU, 0x11U, 0x11U, 0x11U, 0x7EU}, {0x7FU, 0x49U, 0x49U, 0x49U, 0x36U},
+    {0x3EU, 0x41U, 0x41U, 0x41U, 0x22U}, {0x7FU, 0x41U, 0x41U, 0x22U, 0x1CU},
+    {0x7FU, 0x49U, 0x49U, 0x49U, 0x41U}, {0x7FU, 0x09U, 0x09U, 0x09U, 0x01U},
+    {0x3EU, 0x41U, 0x49U, 0x49U, 0x7AU}, {0x7FU, 0x08U, 0x08U, 0x08U, 0x7FU},
+    {0x00U, 0x41U, 0x7FU, 0x41U, 0x00U}, {0x20U, 0x40U, 0x41U, 0x3FU, 0x01U},
+    {0x7FU, 0x08U, 0x14U, 0x22U, 0x41U}, {0x7FU, 0x40U, 0x40U, 0x40U, 0x40U},
+    {0x7FU, 0x02U, 0x0CU, 0x02U, 0x7FU}, {0x7FU, 0x04U, 0x08U, 0x10U, 0x7FU},
+    {0x3EU, 0x41U, 0x41U, 0x41U, 0x3EU}, {0x7FU, 0x09U, 0x09U, 0x09U, 0x06U},
+    {0x3EU, 0x41U, 0x51U, 0x21U, 0x5EU}, {0x7FU, 0x09U, 0x19U, 0x29U, 0x46U},
+    {0x46U, 0x49U, 0x49U, 0x49U, 0x31U}, {0x01U, 0x01U, 0x7FU, 0x01U, 0x01U},
+    {0x3FU, 0x40U, 0x40U, 0x40U, 0x3FU}, {0x1FU, 0x20U, 0x40U, 0x20U, 0x1FU},
+    {0x3FU, 0x40U, 0x38U, 0x40U, 0x3FU}, {0x63U, 0x14U, 0x08U, 0x14U, 0x63U},
+    {0x07U, 0x08U, 0x70U, 0x08U, 0x07U}, {0x61U, 0x51U, 0x49U, 0x45U, 0x43U}};
 
 void OLED_Text(uint8_t x, uint8_t y, const char *text, uint8_t scale)
 {
-    while (*text != '\0') {
+    while (*text != '\0')
+    {
         const uint8_t *glyph = NULL;
         char c = *text++;
-        if (c == '<') glyph = left;
-        else if (c == '+') glyph = plus;
-        else if (c == '*') glyph = star;
-        else if (c == '>') glyph = arrow;
-        else if (c == '.') glyph = dot;
-        else if (c == '-') glyph = minus;
-        else if (c == '%') glyph = percent;
-        else if (c >= '0' && c <= '9') glyph = font[c - '0'];
-        else if (c >= 'A' && c <= 'Z') glyph = font[10 + c - 'A'];
-        if ((unsigned)x + 6U * scale > 128U) break;
-        if (glyph != NULL) {
-            for (unsigned col = 0; col < 5U; ++col) {
-                for (unsigned row = 0; row < 7U; ++row) {
-                    if ((glyph[col] & (1U << row)) == 0U) continue;
-                    for (unsigned dx = 0; dx < scale; ++dx) {
-                        for (unsigned dy = 0; dy < scale; ++dy) {
-                            unsigned px = x + col * scale + dx;
-                            unsigned py = y + row * scale + dy;
-                            if (px < 128U && py < 64U)
-                                framebuffer[(py / 8U) * 128U + px] |= (uint8_t)(1U << (py % 8U));
+        if (c == '<')
+        {
+            glyph = left;
+        }
+        else if (c == '+')
+        {
+            glyph = plus;
+        }
+        else if (c == '*')
+        {
+            glyph = star;
+        }
+        else if (c == '>')
+        {
+            glyph = arrow;
+        }
+        else if (c == '.')
+        {
+            glyph = dot;
+        }
+        else if (c == '-')
+        {
+            glyph = minus;
+        }
+        else if (c == '%')
+        {
+            glyph = percent;
+        }
+        else if ((c >= '0') && (c <= '9'))
+        {
+            glyph = font[(c - '0')];
+        }
+        else if ((c >= 'A') && (c <= 'Z'))
+        {
+            glyph = font[((OLED_DIGIT_GLYPHS + c) - 'A')];
+        }
+        else
+        {
+            /* No action. */
+        }
+        if (((unsigned)x + (OLED_GLYPH_ADVANCE * scale)) > OLED_WIDTH)
+        {
+            break;
+        }
+        else
+        {
+            /* No action. */
+        }
+        if (glyph != NULL)
+        {
+            for (unsigned col = 0U; (col < OLED_GLYPH_COLUMNS); ++col)
+            {
+                for (unsigned row = 0U; (row < OLED_GLYPH_ROWS); ++row)
+                {
+                    if ((glyph[col] & (1U << row)) == 0U)
+                    {
+                        continue;
+                    }
+                    else
+                    {
+                        /* No action. */
+                    }
+                    for (unsigned dx = 0U; (dx < scale); ++dx)
+                    {
+                        for (unsigned dy = 0U; (dy < scale); ++dy)
+                        {
+                            unsigned px = ((x + (col * scale)) + dx);
+                            unsigned py = ((y + (row * scale)) + dy);
+                            if ((px < OLED_WIDTH) && (py < OLED_HEIGHT))
+                            {
+                                framebuffer[(((py / OLED_PAGE_HEIGHT) * OLED_WIDTH) + px)] |=
+                                    (uint8_t)(1U << (py % OLED_PAGE_HEIGHT));
+                            }
+                            else
+                            {
+                                /* No action. */
+                            }
                         }
                     }
                 }
             }
         }
-        x = (uint8_t)(x + 6U * scale);
+        else
+        {
+            /* No action. */
+        }
+        x = (uint8_t)(x + (OLED_GLYPH_ADVANCE * scale));
     }
 }
 
 static HAL_StatusTypeDef command(uint8_t value)
 {
     uint8_t bytes[2] = {0x00U, value};
-    return HAL_I2C_Master_Transmit(&hi2c1, oled_address, bytes, 2U, 20U);
+    return HAL_I2C_Master_Transmit(&hi2c1, oled_address, bytes, 2U, OLED_COMMAND_TIMEOUT_MS);
 }
 
 uint8_t OLED_Init(void)
 {
-    frame_valid=0;
+    frame_valid = 0U;
     const uint8_t addresses[] = {0x3CU, 0x3DU};
     oled_address = 0U;
-    for (unsigned i = 0; i < sizeof(addresses); ++i) {
-        uint16_t candidate = (uint16_t)(addresses[i] << 1);
-        if (HAL_I2C_IsDeviceReady(&hi2c1, candidate, 2U, 20U) == HAL_OK) {
+    for (unsigned i = 0U; (i < sizeof(addresses)); ++i)
+    {
+        uint16_t candidate = (uint16_t)(addresses[i] << 1U);
+        if (HAL_I2C_IsDeviceReady(&hi2c1, candidate, 2U, OLED_COMMAND_TIMEOUT_MS) == HAL_OK)
+        {
             oled_address = candidate;
             break;
         }
+        else
+        {
+            /* No action. */
+        }
     }
-    if (oled_address == 0U) return 0U;
+    if (oled_address == 0U)
+    {
+        return 0U;
+    }
+    else
+    {
+        /* No action. */
+    }
 
-    const uint8_t init[] = {
-        0xAE, 0xD5, 0x80, 0xA8, 0x3F, 0xD3, 0x00, 0x40,
+    const uint8_t init[] = {0xAEU, 0xD5U, 0x80U, 0xA8U, 0x3FU, 0xD3U, 0x00U, 0x40U,
 #if OLED_SH1106
-        0xAD, 0x8B,
+                            0xAD,  0x8B,
 #else
-        0x8D, 0x14, 0x20, 0x02, /* SSD1306 page addressing */
+                            0x8DU, 0x14U, 0x20U, 0x02U, /* SSD1306 page addressing */
 #endif
-        0xA1, 0xC8, 0xDA, 0x12, 0x81, 0x7F,
-        0xD9, 0x22, 0xDB, 0x20, 0xA4, 0xA6, 0xAF
-    };
-    for (unsigned i = 0; i < sizeof(init); ++i) {
-        if (command(init[i]) != HAL_OK) return 0U;
+                            0xA1U, 0xC8U, 0xDAU, 0x12U, 0x81U, 0x7FU, 0xD9U, 0x22U,
+                            0xDBU, 0x20U, 0xA4U, 0xA6U, 0xAFU};
+    for (unsigned i = 0U; (i < sizeof(init)); ++i)
+    {
+        if (command(init[i]) != HAL_OK)
+        {
+            return 0U;
+        }
+        else
+        {
+            /* No action. */
+        }
     }
     return 1U;
 }
 
 uint8_t OLED_Update(void)
 {
-    if (oled_address == 0U) return 0U;
-    if(frame_valid && !memcmp(sent_frame,framebuffer,sizeof(framebuffer))) return 1U;
-    frame_valid=0;
-    uint8_t packet[129];
-    packet[0] = 0x40U;
-    for (unsigned page = 0; page < 8U; ++page) {
-        if (command((uint8_t)(0xB0U + page)) != HAL_OK ||
-            command(OLED_SH1106 ? 0x02U : 0x00U) != HAL_OK ||
-            command(0x10U) != HAL_OK) return 0U;
-        memcpy(&packet[1], &framebuffer[page * 128U], 128U);
-        if (HAL_I2C_Master_Transmit(&hi2c1, oled_address, packet, 129U, 30U) != HAL_OK)
-            return 0U;
+    if (oled_address == 0U)
+    {
+        return 0U;
     }
-    memcpy(sent_frame,framebuffer,sizeof(framebuffer));
-    frame_valid=1;
+    else
+    {
+        /* No action. */
+    }
+    if ((frame_valid != 0U) && (memcmp(sent_frame, framebuffer, sizeof(framebuffer)) == 0))
+    {
+        return 1U;
+    }
+    else
+    {
+        /* No action. */
+    }
+    frame_valid = 0U;
+    uint8_t packet[OLED_PACKET_BYTES];
+    packet[0U] = OLED_HEIGHT;
+    for (unsigned page = 0U; (page < OLED_PAGE_HEIGHT); ++page)
+    {
+        if (((command((uint8_t)(OLED_SET_PAGE_BASE + page)) != HAL_OK) ||
+             (command(OLED_COLUMN_OFFSET) != HAL_OK)) ||
+            (command(OLED_COLUMN_HIGH) != HAL_OK))
+        {
+            return 0U;
+        }
+        else
+        {
+            /* No action. */
+        }
+        memcpy(&packet[1U], &framebuffer[(page * OLED_WIDTH)], OLED_WIDTH);
+        if (HAL_I2C_Master_Transmit(&hi2c1, oled_address, packet, OLED_PACKET_BYTES,
+                                    OLED_DATA_TIMEOUT_MS) != HAL_OK)
+        {
+            return 0U;
+        }
+        else
+        {
+            /* No action. */
+        }
+    }
+    memcpy(sent_frame, framebuffer, sizeof(framebuffer));
+    frame_valid = 1U;
     return 1U;
 }
 
-
 /* Clipped framebuffer drawing: all coordinates are display pixels. */
-void OLED_Rect(unsigned x,unsigned y,unsigned w,unsigned h,uint8_t filled)
+void OLED_Rect(unsigned x, unsigned y, unsigned w, unsigned h, uint8_t filled)
 {
-    if(x>=128U || y>=64U || w==0U || h==0U) return;
-    if(w>128U-x) w=128U-x;
-    if(h>64U-y) h=64U-y;
-    for(unsigned dy=0;dy<h;dy++) for(unsigned dx=0;dx<w;dx++) {
-        if(filled || dx==0U || dy==0U || dx==w-1U || dy==h-1U)
-            framebuffer[((y+dy)/8U)*128U+x+dx]|=(uint8_t)(1U<<((y+dy)%8U));
+    if ((((x >= OLED_WIDTH) || (y >= OLED_HEIGHT)) || (w == 0U)) || (h == 0U))
+    {
+        return;
+    }
+    else
+    {
+        /* No action. */
+    }
+    if (w > (OLED_WIDTH - x))
+    {
+        w = (OLED_WIDTH - x);
+    }
+    else
+    {
+        /* No action. */
+    }
+    if (h > (OLED_HEIGHT - y))
+    {
+        h = (OLED_HEIGHT - y);
+    }
+    else
+    {
+        /* No action. */
+    }
+    for (unsigned dy = 0U; (dy < h); dy++)
+    {
+        for (unsigned dx = 0U; (dx < w); dx++)
+        {
+            if (((((filled != 0U) || (dx == 0U)) || (dy == 0U)) || (dx == (w - 1U))) ||
+                (dy == (h - 1U)))
+            {
+                framebuffer[(((((y + dy) / OLED_PAGE_HEIGHT) * OLED_WIDTH) + x) + dx)] |=
+                    (uint8_t)(1U << ((y + dy) % OLED_PAGE_HEIGHT));
+            }
+            else
+            {
+                /* No action. */
+            }
+        }
     }
 }

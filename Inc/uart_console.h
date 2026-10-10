@@ -1,3 +1,4 @@
+#include "app_constants.h"
 #ifndef UART_CONSOLE_H
 #define UART_CONSOLE_H
 #include "app_state.h"

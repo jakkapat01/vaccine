@@ -1,3 +1,4 @@
+#include "app_constants.h"
 #ifndef LID_TIMER_H
 #define LID_TIMER_H
 #include <stdint.h>

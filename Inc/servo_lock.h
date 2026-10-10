@@ -1,3 +1,4 @@
+#include "app_constants.h"
 #ifndef SERVO_LOCK_H
 #define SERVO_LOCK_H
 #include <stdint.h>

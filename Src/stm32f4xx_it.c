@@ -1,3 +1,4 @@
+#include "app_constants.h"
 #include "main.h"
 
 void SysTick_Handler(void)
@@ -11,14 +12,37 @@ void EXTI15_10_IRQHandler(void)
 }
 
 #include "uart_console.h"
-void USART2_IRQHandler(void) { UARTConsole_IRQHandler(); }
 
-void EXTI3_IRQHandler(void) { HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_3); }
-void EXTI4_IRQHandler(void) { HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_4); }
-void EXTI9_5_IRQHandler(void) { HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_5); }
+void USART2_IRQHandler(void)
+{
+    UARTConsole_IRQHandler();
+}
+
+void EXTI3_IRQHandler(void)
+{
+    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_3);
+}
+
+void EXTI4_IRQHandler(void)
+{
+    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_4);
+}
+
+void EXTI9_5_IRQHandler(void)
+{
+    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_5);
+}
 
 #include "sensors.h"
-void ADC_IRQHandler(void) {Sensors_ADC_IRQHandler();}
+
+void ADC_IRQHandler(void)
+{
+    Sensors_ADC_IRQHandler();
+}
 
 #include "lid_timer.h"
-void TIM2_IRQHandler(void) {LidTimer_IRQHandler();}
+
+void TIM2_IRQHandler(void)
+{
+    LidTimer_IRQHandler();
+}
